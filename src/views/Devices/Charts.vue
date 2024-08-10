@@ -1,11 +1,88 @@
 <template>
   <v-row>
     <!-- Columna 1 -->
-    <v-col>
+    <v-col cols="6">
       <v-card title="Gráfico 1" color="indigo-darken-3" variant="tonal" height="400px">
         <div class="h-chart" ref="zoomableChart"></div>
       </v-card>
     </v-col>
+
+    <!-- Sección media -->
+    <v-col cols="3">
+      <v-row>
+        <!-- Led -->
+        <v-col cols="6">
+          <v-card title="Led" color="indigo-darken-3" variant="tonal" height="150px">
+            <v-card-text class="h-100 text-center">
+              <!-- v-row>v-col>v-btn -> me genera las etiquetas de ambos elementos. -->
+              <v-row class="h-100 mt-1">
+                <v-col>
+                  <v-btn
+                    size="x-large"
+                    :color="light ? 'yellow' : 'blue-grey'"
+                    :icon="light ? 'mdi-lightbulb-on' : 'mdi-lightbulb-outline'"
+                    @click="toggleLight()"
+                  ></v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+        </v-col>
+
+        <!-- Ventilador -->
+        <v-col cols="6">
+          <v-card title="Ventilador" color="indigo-darken-3" variant="tonal" height="150px">
+            <v-card-text class="h-100 text-center">
+              <!-- v-row>v-col>v-btn -> me genera las etiquetas de ambos elementos. -->
+              <v-row class="h-100 mt-1">
+                <v-col>
+                  <v-btn
+                    size="x-large"
+                    :class="fan ? 'rotate' : ''"
+                    :color="fan ? 'yellow' : 'blue-grey'"
+                    :icon="fan ? 'mdi-fan' : 'mdi-fan-off'"
+                    @click="toggleFan()"
+                  ></v-btn>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+        </v-col>
+
+        <!-- Slider luminosidad -->
+        <v-col cols="12">
+          <v-card title="Luminosidad" color="indigo-darken-3" variant="tonal" height="150px">
+            <v-card-text>
+              <v-row>
+                <v-col class="text-center">
+                  <span class="text-h2 font-weight-light">{{ luminosity }}</span>
+                </v-col>
+              </v-row>
+
+              <v-slider
+                v-model="luminosity"
+                :step="1"
+                min="0"
+                max="1023"
+              >
+                <template v-slot:prepend>
+                  <span>0</span>
+                </template>
+
+                <template v-slot:append>
+                  <span>1023</span>
+                </template>
+              </v-slider>
+
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+    </v-col>
+
+    <!-- Sección derecha -->
+    <v-col cols="3"></v-col>
+
     <!-- Columna 2 -->
     <v-col>
       <v-card title="Gráfico 2" color="indigo-darken-3" variant="tonal" height="400px">
@@ -25,6 +102,21 @@ import { io } from "socket.io-client";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
+const light = ref(false);
+const fan = ref(false);
+const luminosity = ref(0);
+
+const toggleLight = () => {
+  //            = !true
+  //light.value = false
+  // !true = false
+  // !false = true
+  light.value = !light.value;
+}
+
+const toggleFan = () => {
+  fan.value = !fan.value;
+}
 
 onBeforeMount(() => {
   socket.connect();
@@ -59,6 +151,12 @@ const initZoomableChart = () => {
     console.log('Temperatura: ', value);
     
     chart.addData({date: new Date(date), value: value });
+
+    if (value > 40) {
+      fan.value = true;
+    } else {
+      fan.value = false;
+    }
   });
 
   let dateAxis = chart.xAxes.push(new am4charts.DateAxis());
@@ -128,5 +226,19 @@ const initCustomChart = () => {
 <style>
 .h-chart {
   height: 320px;
+}
+
+.rotate {
+  animation-name: rotate;
+  animation-duration: 4s;
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotate(0);
+  }
+  100% {
+    transform: rotate(360deg)
+  }
 }
 </style>
