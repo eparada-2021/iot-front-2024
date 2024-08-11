@@ -12,10 +12,11 @@
       <v-row>
         <!-- Led -->
         <v-col cols="6">
-          <v-card title="Led" color="indigo-darken-3" variant="tonal" height="150px">
+          <v-card color="indigo-darken-3" variant="tonal" height="180px">
+            <v-card-title class="text-center">Led</v-card-title>
             <v-card-text class="h-100 text-center">
               <!-- v-row>v-col>v-btn -> me genera las etiquetas de ambos elementos. -->
-              <v-row class="h-100 mt-1">
+              <v-row class="h-100 mt-3">
                 <v-col>
                   <v-btn
                     size="x-large"
@@ -31,10 +32,11 @@
 
         <!-- Ventilador -->
         <v-col cols="6">
-          <v-card title="Ventilador" color="indigo-darken-3" variant="tonal" height="150px">
+          <v-card color="indigo-darken-3" variant="tonal" height="180px">
+            <v-card-title class="text-center">Ventilador</v-card-title>
             <v-card-text class="h-100 text-center">
               <!-- v-row>v-col>v-btn -> me genera las etiquetas de ambos elementos. -->
-              <v-row class="h-100 mt-1">
+              <v-row class="h-100 mt-3">
                 <v-col>
                   <v-btn
                     size="x-large"
@@ -51,17 +53,18 @@
 
         <!-- Slider luminosidad -->
         <v-col cols="12">
-          <v-card title="Luminosidad" color="indigo-darken-3" variant="tonal" height="150px">
+          <v-card title="Luminosidad" color="indigo-darken-3" variant="tonal" height="195px">
             <v-card-text>
-              <v-row>
+              <v-row class="mt-3">
                 <v-col class="text-center">
-                  <span class="text-h2 font-weight-light">{{ luminosity }}</span>
+                  <span class="text-h2 font-weight-light" :class="`text-${sliderColor}`">{{ luminosity }}</span>
                 </v-col>
               </v-row>
 
               <v-slider
                 v-model="luminosity"
                 :step="1"
+                :color="sliderColor"
                 min="0"
                 max="1023"
               >
@@ -81,7 +84,23 @@
     </v-col>
 
     <!-- Sección derecha -->
-    <v-col cols="3"></v-col>
+    <v-col cols="3">
+      <v-card title="Gráfico 2" color="indigo-darken-3" variant="tonal" height="400px">
+        <div class="h-chart" ref="customPictorialChart"></div>
+      </v-card>
+    </v-col>
+
+    <v-col cols="4">
+      <v-card title="Temperatura" color="indigo-darken-3" variant="tonal" height="400px">
+        <div class="h-chart" ref="gauge"></div>
+      </v-card>
+    </v-col>
+
+    <v-col cols="4">
+      <v-card title="Temperatura" color="indigo-darken-3" variant="tonal" height="400px">
+        <div class="h-chart" ref="gauge2"></div>
+      </v-card>
+    </v-col>
 
     <!-- Columna 2 -->
     <v-col>
@@ -97,7 +116,7 @@ import * as am4core from "@amcharts/amcharts4/core";
 import * as am4charts from "@amcharts/amcharts4/charts";
 import am4themes_animated from "@amcharts/amcharts4/themes/animated";
 import am4themes_dark from "@amcharts/amcharts4/themes/dark";
-import { onBeforeMount, onMounted, ref } from "vue";
+import { computed, onBeforeMount, onMounted, ref } from "vue";
 import { io } from "socket.io-client";
 import { useRoute } from "vue-router";
 
@@ -118,6 +137,27 @@ const toggleFan = () => {
   fan.value = !fan.value;
 }
 
+const sliderColor = computed((a, b) => {
+  // 0 - 1023
+  if (luminosity.value < 250) {
+    return 'indigo';
+  }
+
+  if (luminosity.value < 500) {
+    return 'teal';
+  }
+
+  if (luminosity.value < 750) {
+    return 'yellow';
+  }
+
+  if (luminosity.value < 1000) {
+    return 'orange';
+  }
+  
+  return 'red';
+});
+
 onBeforeMount(() => {
   socket.connect();
 
@@ -133,6 +173,9 @@ onMounted(() => {
 
   initZoomableChart();
   initCustomChart();
+  initCustomPictorialChart();
+  initGauge();
+  initGauge2();
 
   socket.on('dispositivo', (dispositivo) => {
     console.log('Dispositivo no encontrado');
@@ -220,6 +263,263 @@ const initCustomChart = () => {
   series.columns.template.tooltipText = "{valueX}";
   series.columns.template.column3D.stroke = am4core.color("#fff");
   series.columns.template.column3D.strokeOpacity = 0.2;
+}
+
+const customPictorialChart = ref(null);
+const initCustomPictorialChart = () => {
+  let capacity = 1023;
+  let value = 40;
+  let circleSize = 0.8;
+
+  let component = am4core.create(customPictorialChart.value, am4core.Container)
+  component.width = am4core.percent(100);
+  component.height = am4core.percent(100);
+
+  let chartContainer = component.createChild(am4core.Container);
+  chartContainer.x = am4core.percent(50)
+  chartContainer.y = am4core.percent(50)
+
+  let circle = chartContainer.createChild(am4core.Circle);
+  circle.fill = am4core.color("#dadada");
+
+  let circleMask = chartContainer.createChild(am4core.Circle);
+
+  let waves = chartContainer.createChild(am4core.WavedRectangle);
+  waves.fill = am4core.color("#34a4eb");
+  waves.mask = circleMask;
+  waves.horizontalCenter = "middle";
+  waves.waveHeight = 10;
+  waves.waveLength = 30;
+  waves.y = 500;
+  circleMask.y = -500;
+
+  component.events.on("maxsizechanged", function(){
+    let smallerSize = Math.min(component.pixelWidth, component.pixelHeight);  
+    let radius = smallerSize * circleSize / 2;
+
+    circle.radius = radius;
+    circleMask.radius = radius;
+    waves.height = smallerSize;
+    waves.width = Math.max(component.pixelWidth, component.pixelHeight);  
+
+    let labelRadius = radius + 20
+
+    capacityLabel.path = am4core.path.moveTo({x:-labelRadius, y:0}) + am4core.path.arcToPoint({x:labelRadius, y:0}, labelRadius, labelRadius);
+    capacityLabel.locationOnPath = 0.5;
+
+    setValue(value);
+  })
+
+
+  function setValue(value){
+    let y = - circle.radius - waves.waveHeight + (1 - value / capacity) * circle.pixelRadius * 2;
+    waves.animate([{property:"y", to:y}, {property:"waveHeight", to:10, from:15}, {property:"x", from:-50, to:0}], 5000, am4core.ease.elasticOut);
+    circleMask.animate([{property:"y", to:-y},{property:"x", from:50, to:0}], 5000, am4core.ease.elasticOut);
+  }
+
+  let label = chartContainer.createChild(am4core.Label)
+  let formattedValue = component.numberFormatter.format(value, "#.#a");
+  formattedValue = formattedValue.toUpperCase();
+
+  label.text = formattedValue;
+  label.fill = am4core.color("#607D8B");
+  label.fontSize = 30;
+  label.horizontalCenter = "middle";
+
+  let capacityLabel = chartContainer.createChild(am4core.Label)
+
+  let formattedCapacity = component.numberFormatter.format(capacity, "#.#a").toUpperCase();;
+
+  capacityLabel.text = `Capacidad: ${capacity}`;
+  capacityLabel.fill = am4core.color("#34a4eb");
+  capacityLabel.fontSize = 20;
+  capacityLabel.textAlign = "middle";
+  capacityLabel.padding(0,0,0,0);
+}
+
+const gauge = ref(null);
+const initGauge = () => {
+  var chart = am4core.create(gauge.value, am4charts.GaugeChart);
+  chart.innerRadius = am4core.percent(82);
+
+  /**
+   * Normal axis
+   */
+
+  var axis = chart.xAxes.push(new am4charts.ValueAxis());
+  axis.min = 0;
+  axis.max = 60;
+  axis.strictMinMax = true;
+  axis.renderer.radius = am4core.percent(80);
+  axis.renderer.inside = true;
+  axis.renderer.line.strokeOpacity = 1;
+  axis.renderer.ticks.template.disabled = false
+  axis.renderer.ticks.template.strokeOpacity = 1;
+  axis.renderer.ticks.template.length = 10;
+  axis.renderer.grid.template.disabled = true;
+  axis.renderer.labels.template.radius = 40;
+  axis.renderer.labels.template.adapter.add("text", function(text) {
+    return text + "°";
+  })
+
+  /**
+   * Axis for ranges
+   */
+
+  var colorSet = new am4core.ColorSet();
+
+  var axis2 = chart.xAxes.push(new am4charts.ValueAxis());
+  axis2.min = 0;
+  axis2.max = 60;
+  axis2.strictMinMax = true;
+  axis2.renderer.labels.template.disabled = true;
+  axis2.renderer.ticks.template.disabled = true;
+  axis2.renderer.grid.template.disabled = true;
+
+  var range0 = axis2.axisRanges.create();
+  range0.value = 0;
+  range0.endValue = 50;
+  range0.axisFill.fillOpacity = 1;
+  range0.axisFill.fill = colorSet.getIndex(0);
+
+  var range1 = axis2.axisRanges.create();
+  range1.value = 50;
+  range1.endValue = 100;
+  range1.axisFill.fillOpacity = 1;
+  range1.axisFill.fill = colorSet.getIndex(2);
+
+  /**
+   * Label
+   */
+
+  var label = chart.radarContainer.createChild(am4core.Label);
+  label.isMeasured = false;
+  label.fontSize = 45;
+  label.x = am4core.percent(50);
+  label.y = am4core.percent(100);
+  label.horizontalCenter = "middle";
+  label.verticalCenter = "bottom";
+  label.text = "50%";
+
+
+  /**
+   * Hand
+   */
+
+  var hand = chart.hands.push(new am4charts.ClockHand());
+  hand.axis = axis2;
+  hand.innerRadius = am4core.percent(20);
+  hand.startWidth = 10;
+  hand.pin.disabled = true;
+  hand.value = 50;
+
+  hand.events.on("propertychanged", function(ev) {
+    range0.endValue = ev.target.value;
+    range1.value = ev.target.value;
+    label.text = axis2.positionToValue(hand.currentPosition).toFixed(1);
+    axis2.invalidate();
+  });
+
+  setInterval(function() {
+    var value = Math.round(Math.random() * 100);
+    var animation = new am4core.Animation(hand, {
+      property: "value",
+      to: value
+    }, 1000, am4core.ease.cubicOut).start();
+  }, 3000);
+}
+
+const gauge2 = ref(null);
+const initGauge2 = () => {
+  var chart = am4core.create(gauge2.value, am4charts.GaugeChart);
+  chart.innerRadius = am4core.percent(82);
+
+  /**
+   * Normal axis
+   */
+
+  var axis = chart.xAxes.push(new am4charts.ValueAxis());
+  axis.min = 0;
+  axis.max = 1023;
+  axis.strictMinMax = true;
+  axis.renderer.radius = am4core.percent(80);
+  axis.renderer.inside = true;
+  axis.renderer.line.strokeOpacity = 1;
+  axis.renderer.ticks.template.disabled = false
+  axis.renderer.ticks.template.strokeOpacity = 1;
+  axis.renderer.ticks.template.length = 10;
+  axis.renderer.grid.template.disabled = true;
+  axis.renderer.labels.template.radius = 40;
+  axis.renderer.labels.template.adapter.add("text", function(text) {
+    return text;
+  })
+
+  /**
+   * Axis for ranges
+   */
+
+  var colorSet = new am4core.ColorSet();
+
+  var axis2 = chart.xAxes.push(new am4charts.ValueAxis());
+  axis2.min = 0;
+  axis2.max = 1023;
+  axis2.strictMinMax = true;
+  axis2.renderer.labels.template.disabled = true;
+  axis2.renderer.ticks.template.disabled = true;
+  axis2.renderer.grid.template.disabled = true;
+
+  var range0 = axis2.axisRanges.create();
+  range0.value = 0;
+  range0.endValue = 50;
+  range0.axisFill.fillOpacity = 1;
+  range0.axisFill.fill = colorSet.getIndex(0);
+
+  var range1 = axis2.axisRanges.create();
+  range1.value = 50;
+  range1.endValue = 1023;
+  range1.axisFill.fillOpacity = 1;
+  range1.axisFill.fill = colorSet.getIndex(2);
+
+  /**
+   * Label
+   */
+
+  var label = chart.radarContainer.createChild(am4core.Label);
+  label.isMeasured = false;
+  label.fontSize = 45;
+  label.x = am4core.percent(50);
+  label.y = am4core.percent(100);
+  label.horizontalCenter = "middle";
+  label.verticalCenter = "bottom";
+  label.text = "50%";
+
+
+  /**
+   * Hand
+   */
+
+  var hand = chart.hands.push(new am4charts.ClockHand());
+  hand.axis = axis2;
+  hand.innerRadius = am4core.percent(20);
+  hand.startWidth = 10;
+  hand.pin.disabled = true;
+  hand.value = 50;
+
+  hand.events.on("propertychanged", function(ev) {
+    range0.endValue = ev.target.value;
+    range1.value = ev.target.value;
+    label.text = axis2.positionToValue(hand.currentPosition).toFixed(1);
+    axis2.invalidate();
+  });
+
+  setInterval(function() {
+    //                         0.999     =  999.9
+    var value = Math.round(Math.random() * 1000);
+    var animation = new am4core.Animation(hand, {
+      property: "value",
+      to: value
+    }, 1000, am4core.ease.cubicOut).start();
+  }, 3000);
 }
 </script>
 
