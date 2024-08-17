@@ -1,14 +1,15 @@
 <template>
   <v-row>
     <!-- Columna 1 -->
-    <v-col cols="6">
-      <v-card title="Gráfico 1" color="indigo-darken-3" variant="tonal" height="400px">
+    <v-col cols="12" md="6">
+      <v-card color="indigo-darken-3" variant="tonal" height="400px">
+        <v-card-title class="text-red">Gráfico 1</v-card-title>
         <div class="h-chart" ref="zoomableChart"></div>
       </v-card>
     </v-col>
 
     <!-- Sección media -->
-    <v-col cols="3">
+    <v-col cols="12" md="3">
       <v-row>
         <!-- Led -->
         <v-col cols="6">
@@ -84,26 +85,26 @@
     </v-col>
 
     <!-- Sección derecha -->
-    <v-col cols="3">
+    <v-col cols="12" md="3">
       <v-card title="Gráfico 2" color="indigo-darken-3" variant="tonal" height="400px">
         <div class="h-chart" ref="customPictorialChart"></div>
       </v-card>
     </v-col>
 
-    <v-col cols="4">
+    <v-col cols="12" md="4">
       <v-card title="Temperatura" color="indigo-darken-3" variant="tonal" height="400px">
         <div class="h-chart" ref="gauge"></div>
       </v-card>
     </v-col>
 
-    <v-col cols="4">
-      <v-card title="Temperatura" color="indigo-darken-3" variant="tonal" height="400px">
+    <v-col cols="12" md="4">
+      <v-card title="Luminosidad" color="indigo-darken-3" variant="tonal" height="400px">
         <div class="h-chart" ref="gauge2"></div>
       </v-card>
     </v-col>
 
     <!-- Columna 2 -->
-    <v-col>
+    <v-col  cols="12" md="4">
       <v-card title="Gráfico 2" color="indigo-darken-3" variant="tonal" height="400px">
         <div class="h-chart" ref="customChart"></div>
       </v-card>
@@ -116,14 +117,16 @@ import * as am4core from "@amcharts/amcharts4/core";
 import * as am4charts from "@amcharts/amcharts4/charts";
 import am4themes_animated from "@amcharts/amcharts4/themes/animated";
 import am4themes_dark from "@amcharts/amcharts4/themes/dark";
-import { computed, onBeforeMount, onMounted, ref } from "vue";
+import { computed, onBeforeMount, onMounted, ref, watch } from "vue";
 import { io } from "socket.io-client";
 import { useRoute } from "vue-router";
+import { useSettingsStore } from "@/stores/settings";
 
 const route = useRoute();
 const light = ref(false);
 const fan = ref(false);
 const luminosity = ref(0);
+const settings = useSettingsStore();
 
 const toggleLight = () => {
   //            = !true
@@ -131,6 +134,9 @@ const toggleLight = () => {
   // !true = false
   // !false = true
   light.value = !light.value;
+
+  // socket.emit("led", 0);
+  socket.emit("led", light.value ? 1 : 0);
 }
 
 const toggleFan = () => {
@@ -180,6 +186,10 @@ onMounted(() => {
   socket.on('dispositivo', (dispositivo) => {
     console.log('Dispositivo no encontrado');
   });
+
+  socket.on("luminosidad", ({ data }) => {
+    luminosity.value = data;
+  });
 });
 
 const socket = io(`http://localhost:${import.meta.env.VITE_WEBSOCKET_PORT}`, {
@@ -226,27 +236,14 @@ const customChart = ref(null);
 const initCustomChart = () => {
   let chart = am4core.create(customChart.value, am4charts.XYChart3D);
 
-  chart.data = [{
-    "year": 2005,
-    "income": 23.5,
-    "color": chart.colors.next()
-  }, {
-    "year": 2006,
-    "income": 26.2,
-    "color": chart.colors.next()
-  }, {
-    "year": 2007,
-    "income": 30.1,
-    "color": chart.colors.next()
-  }, {
-    "year": 2008,
-    "income": 29.5,
-    "color": chart.colors.next()
-  }, {
-    "year": 2009,
-    "income": 24.6,
-    "color": chart.colors.next()
-  }];
+  socket.on("temperatura", ({ date, value }) => {
+    chart.addData({
+      // Sat 17 on 2024 T 
+      "year": `${new Date(date).getMinutes()}:${new Date(date).getSeconds()}`,
+      "income": value,
+      "color": chart.colors.next()
+    })
+  });
 
   let categoryAxis = chart.yAxes.push(new am4charts.CategoryAxis());
   categoryAxis.dataFields.category = "year";
@@ -268,7 +265,7 @@ const initCustomChart = () => {
 const customPictorialChart = ref(null);
 const initCustomPictorialChart = () => {
   let capacity = 1023;
-  let value = 40;
+  let value = 0;
   let circleSize = 0.8;
 
   let component = am4core.create(customPictorialChart.value, am4core.Container)
@@ -307,7 +304,10 @@ const initCustomPictorialChart = () => {
     capacityLabel.path = am4core.path.moveTo({x:-labelRadius, y:0}) + am4core.path.arcToPoint({x:labelRadius, y:0}, labelRadius, labelRadius);
     capacityLabel.locationOnPath = 0.5;
 
-    setValue(value);
+    socket.on("luminosidad", ({ data }) => {
+      value = data
+      setValue(value);
+    });
   })
 
 
@@ -315,11 +315,13 @@ const initCustomPictorialChart = () => {
     let y = - circle.radius - waves.waveHeight + (1 - value / capacity) * circle.pixelRadius * 2;
     waves.animate([{property:"y", to:y}, {property:"waveHeight", to:10, from:15}, {property:"x", from:-50, to:0}], 5000, am4core.ease.elasticOut);
     circleMask.animate([{property:"y", to:-y},{property:"x", from:50, to:0}], 5000, am4core.ease.elasticOut);
+
+    let formattedValue = component.numberFormatter.format(value, "#.#a");
+    label.text = formattedValue;
   }
 
   let label = chartContainer.createChild(am4core.Label)
   let formattedValue = component.numberFormatter.format(value, "#.#a");
-  formattedValue = formattedValue.toUpperCase();
 
   label.text = formattedValue;
   label.fill = am4core.color("#607D8B");
@@ -411,7 +413,7 @@ const initGauge = () => {
   hand.innerRadius = am4core.percent(20);
   hand.startWidth = 10;
   hand.pin.disabled = true;
-  hand.value = 50;
+  hand.value = 0;
 
   hand.events.on("propertychanged", function(ev) {
     range0.endValue = ev.target.value;
@@ -420,13 +422,13 @@ const initGauge = () => {
     axis2.invalidate();
   });
 
-  setInterval(function() {
-    var value = Math.round(Math.random() * 100);
-    var animation = new am4core.Animation(hand, {
+  socket.on("temperatura", ({date, value}) => {
+    new am4core.Animation(hand, {
       property: "value",
       to: value
     }, 1000, am4core.ease.cubicOut).start();
-  }, 3000);
+  });
+
 }
 
 const gauge2 = ref(null);
@@ -503,7 +505,7 @@ const initGauge2 = () => {
   hand.innerRadius = am4core.percent(20);
   hand.startWidth = 10;
   hand.pin.disabled = true;
-  hand.value = 50;
+  hand.value = 0;
 
   hand.events.on("propertychanged", function(ev) {
     range0.endValue = ev.target.value;
@@ -512,15 +514,32 @@ const initGauge2 = () => {
     axis2.invalidate();
   });
 
-  setInterval(function() {
-    //                         0.999     =  999.9
-    var value = Math.round(Math.random() * 1000);
-    var animation = new am4core.Animation(hand, {
+  socket.on("luminosidad", ({ data }) => {
+    new am4core.Animation(hand, {
       property: "value",
-      to: value
+      to: data
     }, 1000, am4core.ease.cubicOut).start();
-  }, 3000);
+  });
 }
+
+watch(() => settings.getIsDarkMode, (newValue, oldValue) => {
+  am4core.disposeAllCharts();
+  am4core.unuseAllThemes();
+
+  console.log('Es tema oscuro?: ', settings.getIsDarkMode);
+
+  if (settings.getIsDarkMode) {
+    am4core.useTheme(am4themes_dark);
+  } else {
+    am4core.useTheme(am4themes_animated);
+  }
+
+  initZoomableChart();
+  initCustomChart();
+  initCustomPictorialChart();
+  initGauge();
+  initGauge2();
+});
 </script>
 
 <style>
